@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/word_model.dart';
@@ -22,6 +24,7 @@ class DatabaseHelper {
       path,
       version: 1,
       onCreate: _createDB,
+      onOpen: _syncDatabaseWithJSON, // Checks and re-syncs JSON changes instantly on app open!
     );
   }
 
@@ -33,22 +36,51 @@ class DatabaseHelper {
         hint TEXT NOT NULL
       )
     ''');
+  }
 
-    final List<Map<String, String>> initialWords = [
-      {"word": "Adobo", "hint": "Toyo"},
-      {"word": "Sinigang", "hint": "Sampalok"},
-      {"word": "Jollibee", "hint": "Manok"},
-      {"word": "Jeepney", "hint": "Pasada"},
-      {"word": "Boracay", "hint": "Buhangin"},
-      {"word": "Balut", "hint": "Sisiw"},
-      {"word": "Halo-Halo", "hint": "Yelo"},
-      {"word": "Lumpia", "hint": "Handaan"},
-      {"word": "Taho", "hint": "Sago"},
-      {"word": "Trisikel", "hint": "Toda"}
-    ];
+  // Wipes and rewrites the internal database only if you update words.json items!
+  Future _syncDatabaseWithJSON(Database db) async {
+    try {
+      final String jsonString = await rootBundle.loadString('assets/data/words.json');
+      final List<dynamic> jsonList = json.decode(jsonString);
 
-    for (var item in initialWords) {
-      await db.insert('words', item);
+      // 1. Check how many items currently exist inside SQLite
+      final countResult = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM words')) ?? 0;
+
+      bool needsUpdate = false;
+
+      // 2. If the count changed, we definitely need an update
+      if (countResult != jsonList.length) {
+        needsUpdate = true;
+      } else {
+        // 3. Even if the count is the same, let's verify a random sample entry 
+        // to see if a word was swapped out or a typo was fixed!
+        final List<Map<String, dynamic>> existingSample = await db.rawQuery('SELECT word FROM words LIMIT 1');
+        if (existingSample.isNotEmpty) {
+          final String firstDbWord = existingSample.first['word'];
+          final String firstJsonWord = jsonList.first['word'];
+          
+          // If the first words don't match, the file has been altered
+          if (firstDbWord != firstJsonWord) {
+            needsUpdate = true;
+          }
+        }
+      }
+
+      // Execute wipe and reload if changes are detected
+      if (needsUpdate) {
+        await db.delete('words');
+        
+        for (var item in jsonList) {
+          await db.insert('words', {
+            'word': item['word'],
+            'hint': item['hint'],
+          });
+        }
+        print("Database automatically updated with ${jsonList.length} fresh words!");
+      }
+    } catch (e) {
+      print("Database sync notice: $e");
     }
   }
 
