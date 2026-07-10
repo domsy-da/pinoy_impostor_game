@@ -15,47 +15,20 @@ class MainMenuScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Styled Impostor Hooded Man Identity Layout
+            // NEW: Brand logo rendering engine replacing old manual icon shape stacks
             Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      color: Colors.black12,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  // Outer Hood Contour Structure
-                  const Icon(
-                    Icons.keyboard_arrow_up, 
-                    size: 110, 
-                    color: Colors.blueGrey,
-                  ),
-                  // Shaded Head Core Faceplate
-                  Positioned(
-                    top: 28,
-                    child: Icon(
-                      Icons.person, 
-                      size: 64, 
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  // Masked Eyes Silhouette Accent
-                  Positioned(
-                    top: 44,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(width: 8, height: 4, color: Colors.redAccent),
-                        const SizedBox(width: 12),
-                        Container(width: 8, height: 4, color: Colors.redAccent),
-                      ],
-                    ),
-                  ),
-                ],
+              child: Image.asset(
+                'assets/images/pig_logo.png',
+                width: 180,  // Perfectly tuned dimensions for standard smartphone viewports
+                height: 180, 
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  // Fallback title card if image files are unindexed in assets
+                  return const Text(
+                    "Pinoy Impostor Game",
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 24),
