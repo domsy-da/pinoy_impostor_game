@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/theme_provider.dart';
 import '../providers/game_provider.dart';
+import '../services/database_helper.dart'; // Added database helper import
 import 'watermark_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -30,10 +31,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+// Updated dialog logic handling the local reset code option
+  void _showAdminPackageDialog(BuildContext context) {
+    final TextEditingController passcodeController = TextEditingController();
+    final gameProvider = Provider.of<GameProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Load Word Package"),
+          content: TextField(
+            controller: passcodeController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: "Secret Passcode",
+              hintText: "Enter expansion package code",
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String inputCode = passcodeController.text.trim();
+                String targetUrl = "";
+                bool isReset = false;
+
+                if (inputCode == "imdomsy-pig") {
+                  targetUrl = "https://pastebin.com/raw/5pTDsprH";
+                } else if (inputCode == "imdomsy-200") {
+                  targetUrl = "https://pastebin.com/raw/zU50qr0n";
+                } else if (inputCode == "pig-doms-300") {
+                  targetUrl = "https://pastebin.com/raw/EFTBjPGK";
+                } else if (inputCode == "imdomsy-reset") {
+                  isReset = true;
+                }
+
+                Navigator.pop(context);
+                bool success = false;
+
+                if (isReset) {
+                  // Hard resets the system table back to the default words.json file layout
+                  success = await DatabaseHelper.instance.resetToDefaultLocalWords();
+                } else if (targetUrl.isNotEmpty) {
+                  success = await DatabaseHelper.instance.fetchOnlineWordsPackage(targetUrl);
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Invalid Passcode!"), backgroundColor: Colors.red),
+                    );
+                  }
+                  return;
+                }
+
+                if (success) {
+                  await gameProvider.refreshDbWordCount();
+                }
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(success 
+                        ? (isReset ? "Reset successful! 200 default words restored." : "Success! New bundle installed.") 
+                        : "Operation failed! Check connection."),
+                      backgroundColor: success ? Colors.green : Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text("Submit"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final gameProvider = Provider.of<GameProvider>(context);
+
+    // Dynamic text color to look correct on both Light and Dark mode options
+    final TextStyle creditStyle = TextStyle(
+      color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+      fontSize: 14,
+    );
 
     return WatermarkScaffold(
       appBar: AppBar(
@@ -70,10 +156,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Center(
               child: Column(
                 children: [
-                  const Text(
-                    "This app is developed by Domingo Jr. Q. Agoncillo.",
+                  // Replaced standard Text here with Text.rich to isolate your double click target
+                  Text.rich(
+                    TextSpan(
+                      style: creditStyle,
+                      children: [
+                        const TextSpan(text: "This app is developed by "),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: GestureDetector(
+                            onDoubleTap: () => _showAdminPackageDialog(context),
+                            child: Text(
+                              "Domingo",
+                              style: creditStyle.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const TextSpan(text: " Jr. Q. Agoncillo."),
+                      ],
+                    ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 4),
                   InkWell(
                     onTap: _launchPortfolio,
                     child: const Text(
